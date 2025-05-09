@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>16x16 Pressure Heatmap</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: black;
+
+        }
+
+        #heatmapContainer {
+            width: 512px;
+            height: 512px;
+            margin: 40px auto;
+            position: relative;
+            background: black;
+        }
+
+        #heatmapLegend {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: black;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+
+        #gradient {
+            width: 100px;
+            height: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="heatmapContainer"></div>
+    <div id="heatmapLegend">
+        <span id="min">0</span>
+        <img id="gradient" src="" />
+        <span id="max">1000</span>
+    </div>
+
+    <script src="heatmap.min.js"></script>
+    <script>
+        const SIZE = 16;          // 16x16 点
+        const CELL_SIZE = 32;     // 每个点的像素大小（用于定位）
+        const MAX_VALUE = 12000;   // 假设压力最大值为1000
+        const MIN_VALUE = 6000;
+        const SCALE = 100/ (MAX_VALUE - MIN_VALUE); // 线性缩放比例
+        console.log(SCALE);
+
+        const heatmap = h337.create({
+            container: document.getElementById('heatmapContainer'),
+            maxOpacity: 0.6,
+            // radius: 20,
+            blur: 0.85,
+            onExtremaChange: updateLegend
+        });
+
+        // 图例更新
+        function updateLegend(data) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 100;
+            canvas.height = 10;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createLinearGradient(0, 0, 100, 0);
+            for (let stop in data.gradient) {
+                gradient.addColorStop(stop, data.gradient[stop]);
+            }
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 100, 10);
+            document.getElementById('gradient').src = canvas.toDataURL();
+            document.getElementById('min').textContent = data.min;
+            document.getElementById('max').textContent = data.max;
+        }
+
+        // 生成假数据或从WebSocket接收数据
+        function generateMockPressureData() {
+            const data = [];
+            for (let y = 0; y < SIZE; y++) {
+                for (let x = 0; x < SIZE; x++) {
+                    data.push(Math.floor(Math.random() * MAX_VALUE));
+                }
+            }
+            return data;
+        }
+
+        // 渲染热图数据
+        function updateHeatmap(pressureArray) {
+            const heatData = [];
+            for (let y = 0; y < SIZE; y++) {
+                for (let x = 0; x < SIZE; x++) {
+                    const idx = y * SIZE + x;
+                    heatData.push({
+                        x: x * CELL_SIZE + CELL_SIZE / 2,
+                        y: y * CELL_SIZE + CELL_SIZE / 2,
+                        value: pressureArray[idx],
+                        radius: SCALE * ((pressureArray[idx] - MIN_VALUE)) // 线性缩放
+                    });
+                }
+            }
+
+            heatmap.setData({
+                min: 0,
+                max: MAX_VALUE,
+                data: heatData
+            });
+        }
+
+        // // 模拟每 1 秒更新一次热图（你可以换成 WebSocket.onmessage 来替换）
+        // setInterval(() => {
+        //   const pressureData = generateMockPressureData(); // 👈 替换这里为你的数据源
+        //   updateHeatmap(pressureData);
+        // }, 1000);
+
+        // ✅ 你可以用以下方式替换为 WebSocket 数据流：
+        const ws = new WebSocket("ws://localhost:3000");
+        ws.onmessage = function (event) {
+            const raw = event.data; // 假设是 JSON 格式的 [256] 数组
+            // print
+            // console.log(raw);
+            const pressureData = JSON.parse(raw);
+            // console.log(pressureData.pressure_val);
+            updateHeatmap(pressureData.pressure_val);
+        };
+    </script>
+</body>
+
+</html>
